@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Jungle Monkey Adventure</title>
+
+<style>
+    body {
+        margin: 0;
+        background: #dce8bd;
+        font-family: Arial, sans-serif;
+        text-align: center;
+    }
+
+    h1 {
+        color: #285c36;
+        margin: 15px;
+    }
+
+    canvas {
+        width: 95%;
+        max-width: 900px;
+        border: 4px solid #285c36;
+        border-radius: 10px;
+        background: #a8dfef;
+    }
+
+    p {
+        color: #285c36;
+        font-weight: bold;
+    }
+
+    button {
+        background: #285c36;
+        color: white;
+        border: none;
+        padding: 10px 20px;
+        border-radius: 8px;
+        cursor: pointer;
+        font-size: 16px;
+    }
+</style>
+</head>
+
+<body>
+
+<h1>🌴 Jungle Monkey Adventure 🐒</h1>
+<canvas id="game" width="900" height="500"></canvas>
+
+<p>Move: ← → | Jump: SPACE</p>
+<p id="info">Ambil semua koin dan pisangnya, berjalanlah hingga finish!</p>
+<button onclick="restartGame()">Restart Game</button>
+
+<script>
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
+
+const worldWidth = 2200;
+const groundY = 430;
+
+let player, coins, bananas, score, camera, won, gameOver;
+let keys = {};
+
+const platforms = [
+    {x: 0, y: 430, w: 450, h: 70},
+    {x: 520, y: 430, w: 350, h: 70},
+    {x: 950, y: 430, w: 350, h: 70},
+    {x: 1380, y: 430, w: 350, h: 70},
+    {x: 1810, y: 430, w: 390, h: 70},
+    {x: 280, y: 340, w: 120, h: 18},
+    {x: 650, y: 340, w: 120, h: 18},
+    {x: 1080, y: 330, w: 130, h: 18},
+    {x: 1500, y: 340, w: 130, h: 18},
+    {x: 1860, y: 330, w: 130, h: 18}
+];
+
+const rocks = [
+    {x: 220, y: 398},
+    {x: 600, y: 398},
+    {x: 1050, y: 398},
+    {x: 1460, y: 398},
+    {x: 1900, y: 398}
+];
+
+function restartGame() {
+    player = {
+        x: 50, y: 350, w: 32, h: 40,
+        vx: 0, vy: 0, grounded: false
+    };
+
+    coins = [180, 320, 570, 700, 1000, 1150, 1450, 1550, 1900, 2020]
+        .map(x => ({x, y: 300, collected: false}));
+
+    bananas = [370, 740, 1130, 1580, 1940]
+        .map(x => ({x, y: 285, collected: false}));
+
+    score = 0;
+    camera = 0;
+    won = false;
+    gameOver = false;
+
+    document.getElementById("info").textContent =
+        "Collect coins and bananas. Reach the finish!";
+}
+
+document.addEventListener("keydown", e => {
+    keys[e.code] = true;
+
+    if (["ArrowLeft", "ArrowRight", "Space"].includes(e.code)) {
+        e.preventDefault();
+    }
+
+    if (e.code === "Space" && player.grounded && !won && !gameOver) {
+        player.vy = -12;
+        player.grounded = false;
+    }
+
+    if (e.code === "Enter" && (won || gameOver)) {
+        restartGame();
+    }
+});
+
+document.addEventListener("keyup", e => {
+    keys[e.code] = false;
+});
+
+function overlap(a, b) {
+    return a.x < b.x + b.w &&
+           a.x + a.w > b.x &&
+           a.y < b.y + b.h &&
+           a.y + a.h > b.y;
+}
+
+function update() {
+    if (won || gameOver) return;
+
+    const oldY = player.y;
+
+    player.vx = 0;
+
+    if (keys.ArrowRight || keys.KeyD) player.vx = 4;
+    if (keys.ArrowLeft || keys.KeyA) player.vx = -4;
+
+    player.x += player.vx;
+    player.x = Math.max(0, Math.min(worldWidth - player.w, player.x));
+
+    player.vy += 0.55;
+    player.y += player.vy;
+    player.grounded = false;
+
+    for (const p of platforms) {
+        if (
+            player.vy >= 0 &&
+            oldY + player.h <= p.y + 5 &&
+            player.y + player.h >= p.y &&
+            player.x + player.w > p.x &&
+            player.x < p.x + p.w
+        ) {
+            player.y = p.y - player.h;
+            player.vy = 0;
+            player.grounded = true;
+        }
+    }
+
+    if (player.y > 550) {
+        gameOver = true;
+        document.getElementById("info").textContent =
+            "Oops! You fell. Press Enter or Restart Game.";
+    }
+
+    for (const rock of rocks) {
+        if (overlap(player, {x: rock.x, y: rock.y, w: 35, h: 32})) {
+            gameOver = true;
+            document.getElementById("info").textContent =
+                "Oops! You hit a rock. Press Enter or Restart Game.";
+        }
+    }
+
+    for (const coin of coins) {
+        if (!coin.collected &&
+            overlap(player, {x: coin.x, y: coin.y, w: 20, h: 20})) {
+            coin.collected = true;
+            score += 10;
+        }
+    }
+
+    for (const banana of bananas) {
+        if (!banana.collected &&
+            overlap(player, {x: banana.x, y: banana.y, w: 25, h: 25})) {
+            banana.collected = true;
+            score += 20;
+        }
+    }
+
+    if (player.x > 2130) {
+        won = true;
+        document.getElementById("info").textContent =
+            "YOU WIN! Final Score: " + score + " points!";
+    }
+
+    camera = Math.max(0, Math.min(
+        worldWidth - canvas.width,
+        player.x - 300
+    ));
+}
+
+function drawBackground() {
+    // langit gradasi
+    const sky = ctx.createLinearGradient(0, 0, 0, 500);
+    sky.addColorStop(0, "#70c9dc");
+    sky.addColorStop(1, "#d5f0bb");
+    ctx.fillStyle = sky;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // matahari
+    ctx.fillStyle = "#ffe89a";
+    ctx.beginPath();
+    ctx.arc(760 - camera * 0.08, 75, 42, 0, Math.PI * 2);
+    ctx.fill();
+
+    // awan
+    function cloud(x, y, size) {
+        ctx.fillStyle = "rgba(255,255,255,0.8)";
+        ctx.beginPath();
+        ctx.arc(x, y, size * 0.5, 0, Math.PI * 2);
+        ctx.arc(x + size * 0.5, y - 12, size * 0.65, 0, Math.PI * 2);
+        ctx.arc(x + size, y, size * 0.5, 0, Math.PI * 2);
+        ctx.fill();
+    }
+
+    cloud(100 - camera * 0.12, 90, 55);
+    cloud(430 - camera * 0.1, 130, 45);
+    cloud(680 - camera * 0.12, 160, 50);
+
+    // gunung di kejauhan
+    ctx.fillStyle = "#9bcba0";
+    ctx.beginPath();
+    ctx.moveTo(0, 330);
+    ctx.lineTo(150, 150);
+    ctx.lineTo(290, 330);
+    ctx.lineTo(450, 180);
+    ctx.lineTo(650, 330);
+    ctx.lineTo(800, 200);
+    ctx.lineTo(1000, 330);
+    ctx.lineTo(1000, 500);
+    ctx.lineTo(0, 500);
+    ctx.closePath();
+    ctx.fill();
+
+    // hutan belakang
+    for (let x = -100; x < worldWidth; x += 100) {
+        const tx = x - camera * 0.3;
+
+        ctx.fillStyle = "#4e9b67";
+        ctx.beginPath();
+        ctx.arc(tx + 40, 315, 65, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.fillStyle = "#357b50";
+        ctx.fillRect(tx + 30, 300, 20, 130);
+    }
+
+    // pohon besar di depan
+    for (let x = -80; x < worldWidth; x += 220) {
+        const tx = x - camera * 0.55;
+
+        ctx.fillStyle = "#795438";
+        ctx.fillRect(tx + 35, 245, 30, 185);
+
+        ctx.fillStyle = "#236b43";
+        ctx.beginPath();
+        ctx.arc(tx + 50, 225, 65, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.fillStyle = "#389653";
+        ctx.beginPath();
+        ctx.arc(tx + 15, 250, 40, 0, Math.PI * 2);
+        ctx.arc(tx + 85, 250, 40, 0, Math.PI * 2);
+        ctx.fill();
+
+        // daun kecil
+        ctx.fillStyle = "#6abf69";
+        ctx.beginPath();
+        ctx.arc(tx + 35, 200, 18, 0, Math.PI * 2);
+        ctx.arc(tx + 70, 215, 20, 0, Math.PI * 2);
+        ctx.fill();
+    }
+
+    // semak di bagian bawah
+    for (let x = -50; x < worldWidth; x += 100) {
+        const tx = x - camera * 0.7;
+
+        ctx.fillStyle = "#39874a";
+        ctx.beginPath();
+        ctx.arc(tx, 420, 28, 0, Math.PI * 2);
+        ctx.arc(tx + 25, 410, 32, 0, Math.PI * 2);
+        ctx.arc(tx + 50, 423, 25, 0, Math.PI * 2);
+        ctx.fill();
+    }
+}
+
+function draw() {
+    drawBackground();
+
+    ctx.save();
+    ctx.translate(-camera, 0);
+
+    // Platforms and ground
+    for (const p of platforms) {
+        ctx.fillStyle = "#805637";
+        ctx.fillRect(p.x, p.y, p.w, p.h);
+
+        ctx.fillStyle = "#55a844";
+        ctx.fillRect(p.x, p.y, p.w, 12);
+    }
+
+    // Rocks
+    for (const rock of rocks) {
+        ctx.fillStyle = "#777777";
+        ctx.beginPath();
+        ctx.ellipse(rock.x + 17, rock.y + 17, 20, 16, 0, 0, Math.PI * 2);
+        ctx.fill();
+    }
+
+    // Coins
+    for (const coin of coins) {
+        if (coin.collected) continue;
+
+        ctx.fillStyle = "#ffd52a";
+        ctx.beginPath();
+        ctx.arc(coin.x + 10, coin.y + 10, 10, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.fillStyle = "#fff1a0";
+        ctx.fillRect(coin.x + 8, coin.y + 3, 4, 14);
+    }
+
+    // Bananas
+    for (const banana of bananas) {
+        if (banana.collected) continue;
+
+        ctx.font = "25px Arial";
+        ctx.fillText("🍌", banana.x, banana.y + 23);
+    }
+
+    // Finish flag
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(2160, 300, 5, 130);
+    ctx.fillStyle = "#e84d4d";
+    ctx.fillRect(2165, 300, 55, 35);
+
+    // Monkey Milo
+    ctx.fillStyle = "#9b6239";
+    ctx.beginPath();
+    ctx.arc(player.x + 16, player.y + 12, 15, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = "#f5d4a8";
+    ctx.beginPath();
+    ctx.arc(player.x + 16, player.y + 18, 9, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = "#ffffff";
+    ctx.beginPath();
+    ctx.arc(player.x + 11, player.y + 10, 4, 0, Math.PI * 2);
+    ctx.arc(player.x + 21, player.y + 10, 4, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = "#222222";
+    ctx.beginPath();
+    ctx.arc(player.x + 12, player.y + 10, 2, 0, Math.PI * 2);
+    ctx.arc(player.x + 22, player.y + 10, 2, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = "#674127";
+    ctx.fillRect(player.x + 4, player.y + 29, 8, 11);
+    ctx.fillRect(player.x + 20, player.y + 29, 8, 11);
+
+    ctx.restore();
+
+    // Score display
+    ctx.fillStyle = "#204c2c";
+    ctx.fillRect(15, 15, 180, 42);
+    ctx.fillStyle = "#ffffff";
+    ctx.font = "bold 20px Arial";
+    ctx.fillText("Score: " + score, 28, 43);
+
+    if (won || gameOver) {
+        ctx.fillStyle = "rgba(0,0,0,0.65)";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        ctx.fillStyle = "#ffffff";
+        ctx.textAlign = "center";
+        ctx.font = "bold 38px Arial";
+        ctx.fillText(won ? "YOU WIN!" : "GAME OVER", 450, 225);
+
+        ctx.font = "20px Arial";
+        ctx.fillText("Press Enter or Restart Game", 450, 270);
+        ctx.textAlign = "left";
+    }
+}
+
+function loop() {
+    update();
+    draw();
+    requestAnimationFrame(loop);
+}
+
+restartGame();
+loop();
+</script>
+
+</body>
+</html>
